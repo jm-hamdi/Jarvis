@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: payment-api
+    static_configs:
+      - targets: ["jarvis-payment-api:8000"]
+    metrics_path: /metrics
+
+  - job_name: detector
+    static_configs:
+      - targets: ["jarvis-detector:8080"]
+
+  - job_name: remediator
+    static_configs:
+      - targets: ["jarvis-remediator:8081"]
+
+  - job_name: verifier
+    static_configs:
+      - targets: ["jarvis-verifier:8082"]

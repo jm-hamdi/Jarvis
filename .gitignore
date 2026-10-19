@@ -1,0 +1,45 @@
+# Temp ignore
+CLAUDE.md
+
+# Environment
+.env
+*.env
+
+# Secrets / keys
+*.key
+*.pem
+*.p12
+vault/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# ML models
+ia-auto/detector/model/*.joblib
+ia-auto/detector/model/*.pkl
+
+# DB backups
+sys-pai/db/backups/*
+!sys-pai/db/backups/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

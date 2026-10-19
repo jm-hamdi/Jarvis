@@ -1,0 +1,24 @@
+playbooks:
+  flood:
+    - action: ban_ip_waf
+      description: "Ban attacker IP in WAF banned_ips.conf + reload Nginx"
+  bruteforce:
+    - action: ban_ip_waf
+      description: "Ban source IP"
+    - action: restart_service
+      service: jarvis-auth-service
+      description: "Restart auth service to flush sessions"
+  sqli:
+    - action: ban_ip_waf
+      description: "Ban source IP"
+  service_down:
+    - action: restart_service
+      description: "Restart the affected container"
+  db_corruption:
+    - action: restore_db_snapshot
+      description: "Restore last DB snapshot"
+  secret_leak:
+    - action: rotate_vault_secret
+      description: "Rotate secret in Vault"
+    - action: restart_service
+      description: "Restart dependent services"

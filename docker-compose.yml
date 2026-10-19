@@ -1,0 +1,255 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+#  NETWORKS
+# ─────────────────────────────────────────────────────────────
+networks:
+  dmz:
+  app:
+  data:
+  ops:
+
+# ─────────────────────────────────────────────────────────────
+#  VOLUMES
+# ─────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  vault_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  wazuh_data:
+  redis_data:
+
+# ─────────────────────────────────────────────────────────────
+#  SERVICES
+# ─────────────────────────────────────────────────────────────
+services:
+
+  # ── DMZ ────────────────────────────────────────────────────
+
+  waf:
+    container_name: jarvis-waf
+    image: nginx:1.25-alpine
+    volumes:
+      - ./siem/waf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./siem/waf/modsecurity:/etc/nginx/modsecurity:ro
+      - ./siem/waf/banned_ips.conf:/etc/nginx/banned_ips.conf
+    ports:
+      - "80:80"
+    networks: [dmz, app]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost/health"]
+      interval: 10s
+      retries: 3
+
+  pay-front:
+    container_name: jarvis-pay-front
+    build: ./sys-pai/pay-front
+    networks: [dmz]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3000/health"]
+      interval: 10s
+      retries: 3
+
+  # ── APP ────────────────────────────────────────────────────
+
+  payment-api:
+    container_name: jarvis-payment-api
+    build: ./sys-pai/payment-api
+    env_file: .env
+    networks: [app, data, ops]
+    depends_on: [postgres, auth-service]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  auth-service:
+    container_name: jarvis-auth-service
+    build: ./sys-pai/auth-service
+    env_file: .env
+    networks: [app, data]
+    depends_on: [postgres]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      retries: 5
+
+  # ── DATA ───────────────────────────────────────────────────
+
+  postgres:
+    container_name: jarvis-postgres
+    image: postgres:16-alpine
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sys-pai/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      retries: 5
+
+  vault:
+    container_name: jarvis-vault
+    image: hashicorp/vault:1.17
+    cap_add: [IPC_LOCK]
+    env_file: .env
+    volumes:
+      - vault_data:/vault/data
+      - ./infra/vault/policies:/vault/policies:ro
+    command: server -dev -dev-root-token-id=${VAULT_TOKEN:-root}
+    networks: [data, ops]
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      retries: 5
+
+  # ── OPS ────────────────────────────────────────────────────
+
+  redis:
+    container_name: jarvis-redis
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks: [ops]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+  prometheus:
+    container_name: jarvis-prometheus
+    image: prom/prometheus:v2.51.0
+    volumes:
+      - ./siem/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks: [ops]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      retries: 3
+
+  loki:
+    container_name: jarvis-loki
+    image: grafana/loki:3.0.0
+    volumes:
+      - ./siem/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/config.yml
+    networks: [ops]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3100/ready"]
+      interval: 10s
+      retries: 3
+
+  promtail:
+    container_name: jarvis-promtail
+    image: grafana/promtail:3.0.0
+    volumes:
+      - ./siem/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks: [ops]
+
+  grafana:
+    container_name: jarvis-grafana
+    image: grafana/grafana:10.4.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./siem/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    ports:
+      - "3001:3000"
+    networks: [ops]
+
+  wazuh:
+    container_name: jarvis-wazuh
+    image: wazuh/wazuh-manager:4.7.4
+    volumes:
+      - wazuh_data:/var/ossec/data
+      - ./siem/wazuh/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
+      - ./siem/wazuh/rules/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml:ro
+    networks: [ops]
+    healthcheck:
+      test: ["CMD", "/var/ossec/bin/ossec-control", "status"]
+      interval: 30s
+      retries: 3
+
+  docker-socket-proxy:
+    container_name: jarvis-socket-proxy
+    image: tecnativa/docker-socket-proxy:0.1.2
+    environment:
+      CONTAINERS: 1
+      POST: 1
+      EXEC: 0
+      AUTH: 0
+      IMAGES: 0
+      NETWORKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [ops]
+
+  detector:
+    container_name: jarvis-detector
+    build: ./ia-auto/detector
+    env_file: .env
+    networks: [ops]
+    depends_on: [redis, prometheus]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      retries: 3
+
+  remediator:
+    container_name: jarvis-remediator
+    build: ./ia-auto/remediator
+    env_file: .env
+    networks: [ops]
+    depends_on: [redis, docker-socket-proxy]
+    environment:
+      - DOCKER_HOST=tcp://jarvis-socket-proxy:2375
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 15s
+      retries: 3
+
+  verifier:
+    container_name: jarvis-verifier
+    build: ./ia-auto/verifier
+    env_file: .env
+    networks: [ops, app]
+    depends_on: [redis, payment-api]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 15s
+      retries: 3
+
+  backend:
+    container_name: jarvis-backend
+    build: ./backend
+    env_file: .env
+    networks: [ops]
+    depends_on: [redis, prometheus]
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 10s
+      retries: 5
+
+  frontend:
+    container_name: jarvis-frontend
+    build: ./frontend
+    networks: [ops]
+    depends_on: [backend]
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:80"]
+      interval: 10s
+      retries: 3
