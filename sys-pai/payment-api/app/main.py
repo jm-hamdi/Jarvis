@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from uuid import uuid4, UUID
 from datetime import datetime, timezone
@@ -7,6 +8,13 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 import time
 
 app = FastAPI(title="Payment API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 REQUEST_COUNT  = Counter("payment_requests_total", "Total payment requests", ["status"])
 REQUEST_LATENCY = Histogram("payment_latency_seconds", "Payment request latency")
