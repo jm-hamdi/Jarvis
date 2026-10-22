@@ -11,7 +11,7 @@ export default function Waveform({ color = "#22D3EE", bars = 7, height = 20 }: W
       {Array.from({ length: bars }).map((_, i) => (
         <div
           key={i}
-          className={`w-[3px] rounded-sm`}
+          className="w-[3px] rounded-sm"
           style={{
             background: color,
             height: `${height}px`,

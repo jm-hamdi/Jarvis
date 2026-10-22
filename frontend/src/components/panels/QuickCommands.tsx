@@ -9,7 +9,7 @@ const COMMANDS = [
 
 export default function QuickCommands() {
   return (
-    <div className="panel h-full flex flex-col p-3">
+    <div className="panel flex flex-col p-3" style={{height:"100%"}}>
       <span className="panel-title mb-3">Quick Commands</span>
       <div className="flex flex-col gap-2 flex-1">
         {COMMANDS.map(({ icon: Icon, label, color }) => (

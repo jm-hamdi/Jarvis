@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/layout/Header";
 import CoreOverview from "./components/panels/CoreOverview";
@@ -12,95 +13,101 @@ import InfraStatus from "./components/panels/InfraStatus";
 import StatusChips from "./components/bottom/StatusChips";
 import TalkToJarvis from "./components/bottom/TalkToJarvis";
 import ExecutiveBriefing from "./components/bottom/ExecutiveBriefing";
-import type { SystemState } from "./types/events";
+import { useScenario } from "./mocks/scenario";
 
-const SYSTEM_STATE: SystemState = "OPTIMAL";
-
-// ─── Layout constants (scaled from 1920×1080 reference) ───────────────────────
-// Sidebar: 296px  |  Content: 1624px  |  Gap: 16px  |  Margin: 16px
-// Header: 88px
-// Row 1: 365px  |  Row 2: 224px  |  Row 3: 261px
-// Bottom: 86px
+const W = 1920;
+const H = 1080;
+const SIDEBAR = 296;
 
 export default function App() {
+  const scenario = useScenario();
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const compute = () => {
+      setScale(Math.min(window.innerWidth / W, window.innerHeight / H));
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
   return (
-    <div
-      className="flex w-screen h-screen overflow-hidden"
-      style={{ background: "radial-gradient(ellipse at 50% 40%, #0A1E3A 0%, #030914 70%)" }}
-    >
-      {/* ── SIDEBAR ────────────────────────────────────────────────────────────── */}
-      <Sidebar />
-
-      {/* ── MAIN ───────────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <Header state={SYSTEM_STATE} />
-
-        {/* Content area */}
-        <div
-          className="flex-1 min-h-0 flex flex-col"
-          style={{ padding: 16, gap: 16 }}
-        >
-          {/* ROW 1 */}
-          <div className="flex gap-4 min-h-0" style={{ flex: "0 0 calc(35% - 8px)" }}>
-            {/* AI Core Overview — 272px equiv → ~16.7% */}
-            <div style={{ flex: "0 0 16.7%", minWidth: 0 }}>
-              <CoreOverview />
-            </div>
-            {/* Orbe centrale — 906px equiv → ~55.8% */}
-            <div style={{ flex: "1 1 0%", minWidth: 0 }}>
-              <CoreOrb state={SYSTEM_STATE} />
-            </div>
-            {/* Live Intel Feed — 379px equiv → ~23.3% */}
-            <div style={{ flex: "0 0 23.3%", minWidth: 0 }}>
-              <IntelFeed />
-            </div>
-          </div>
-
-          {/* ROW 2 */}
-          <div className="flex gap-4 min-h-0" style={{ flex: "0 0 calc(22% - 8px)" }}>
-            {/* Active Agents — 792px equiv → ~52.5% */}
-            <div style={{ flex: "0 0 52.5%", minWidth: 0 }}>
-              <AgentsGrid />
-            </div>
-            {/* Mission Timeline — 424px equiv → ~28% */}
-            <div style={{ flex: "0 0 28%", minWidth: 0 }}>
-              <IncidentTimeline />
-            </div>
-            {/* Quick Commands — 344px equiv → ~22.8% */}
-            <div style={{ flex: "1 1 0%", minWidth: 0 }}>
-              <QuickCommands />
-            </div>
-          </div>
-
-          {/* ROW 3 */}
-          <div className="flex gap-4 min-h-0" style={{ flex: "1 1 0%" }}>
-            {/* System Monitor — 416px equiv → ~27.6% */}
-            <div style={{ flex: "0 0 27.6%", minWidth: 0 }}>
-              <SystemMonitor />
-            </div>
-            {/* Anomaly Insights — 387px equiv → ~25.6% */}
-            <div style={{ flex: "0 0 25.6%", minWidth: 0 }}>
-              <AnomalyInsights />
-            </div>
-            {/* LLM / Infra Status — 757px equiv → ~50.1% */}
-            <div style={{ flex: "1 1 0%", minWidth: 0 }}>
-              <InfraStatus />
-            </div>
-          </div>
+    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#030914", position: "relative" }}>
+      {/* ── Fixed 1920×1080 canvas, scaled to fit any screen ── */}
+      <div
+        style={{
+          width: W,
+          height: H,
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: `translate(-50%, -50%) scale(${scale})`,
+          transformOrigin: "center center",
+          background: "radial-gradient(ellipse at 50% 40%, #0A1E3A 0%, #030914 70%)",
+          display: "grid",
+          gridTemplateColumns: `${SIDEBAR}px 1fr`,
+          overflow: "hidden",
+        }}
+      >
+        {/* ── SIDEBAR ── */}
+        <div style={{ height: H, overflow: "hidden" }}>
+          <Sidebar />
         </div>
 
-        {/* ── BOTTOM BAR ─────────────────────────────────────────────────────── */}
+        {/* ── MAIN COLUMN: 5-row grid, no fixed row heights ── */}
         <div
-          className="flex items-center px-4 flex-shrink-0"
           style={{
-            height: 86,
-            background: "rgba(3,9,20,0.95)",
-            borderTop: "1px solid rgba(56,189,248,0.2)",
+            display: "grid",
+            gridTemplateRows: "72px minmax(0,1.6fr) minmax(0,1fr) minmax(0,1.15fr) 72px",
+            gap: 12,
+            padding: 12,
+            height: H,
+            minHeight: 0,
+            overflow: "hidden",
           }}
         >
-          <StatusChips />
-          <TalkToJarvis />
-          <ExecutiveBriefing />
+          {/* ROW 0 — Header */}
+          <Header state={scenario.systemState} />
+
+          {/* ROW 1 — CoreOverview | CoreOrb | IntelFeed */}
+          <div style={{ display: "grid", gridTemplateColumns: "272fr 906fr 379fr", gap: 12, minHeight: 0 }}>
+            <CoreOverview systemState={scenario.systemState} />
+            <CoreOrb state={scenario.systemState} mttr={scenario.mttr} />
+            <IntelFeed items={scenario.intelFeed} />
+          </div>
+
+          {/* ROW 2 — AgentsGrid | IncidentTimeline | QuickCommands */}
+          <div style={{ display: "grid", gridTemplateColumns: "792fr 424fr 344fr", gap: 12, minHeight: 0 }}>
+            <AgentsGrid agentStates={scenario.agentStates} />
+            <IncidentTimeline items={scenario.timeline} />
+            <QuickCommands />
+          </div>
+
+          {/* ROW 3 — SystemMonitor | AnomalyInsights | InfraStatus */}
+          <div style={{ display: "grid", gridTemplateColumns: "416fr 387fr 757fr", gap: 12, minHeight: 0 }}>
+            <SystemMonitor />
+            <AnomalyInsights anomalyScore={scenario.anomalyScore} />
+            <InfraStatus />
+          </div>
+
+          {/* ROW 4 — Bottom Bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              paddingLeft: 16,
+              paddingRight: 16,
+              background: "rgba(3,9,20,0.95)",
+              borderTop: "1px solid rgba(56,189,248,0.2)",
+              minHeight: 0,
+              overflow: "hidden",
+            }}
+          >
+            <StatusChips txPerMin={scenario.txPerMin} />
+            <TalkToJarvis />
+            <ExecutiveBriefing />
+          </div>
         </div>
       </div>
     </div>

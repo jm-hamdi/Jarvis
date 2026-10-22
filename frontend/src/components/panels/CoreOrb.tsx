@@ -4,7 +4,7 @@ import { Points, PointMaterial } from "@react-three/drei";
 import * as THREE from "three";
 import type { SystemState } from "../../types/events";
 
-interface OrbProps { state: SystemState }
+interface OrbProps { state: SystemState; mttr: number }
 
 const STATE_COLORS: Record<SystemState, string> = {
   OPTIMAL:        "#22D3EE",
@@ -50,10 +50,21 @@ function Ring({ radius, color, speed = 0.5, tilt = Math.PI / 4 }: { radius: numb
   );
 }
 
-export default function CoreOrb({ state }: OrbProps) {
+function formatMTTR(s: number): string {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}m ${String(r).padStart(2, "0")}s`;
+}
+
+export default function CoreOrb({ state, mttr }: OrbProps) {
   const color = STATE_COLORS[state];
+  const showMTTR = state !== "OPTIMAL";
   return (
-    <div className="panel h-full flex flex-col items-center justify-center relative overflow-hidden">
+    <div
+      className="panel relative overflow-hidden"
+      style={{ height: "100%" }}
+    >
       {/* 3D Canvas */}
       <div className="absolute inset-0">
         <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
@@ -66,8 +77,8 @@ export default function CoreOrb({ state }: OrbProps) {
         </Canvas>
       </div>
 
-      {/* Overlay text */}
-      <div className="relative z-10 flex flex-col items-center pointer-events-none">
+      {/* Overlay text — absolute so it's always dead-center */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
         <span
           className="font-orbitron font-black tracking-[0.3em]"
           style={{ fontSize: 42, color, textShadow: `0 0 30px ${color}` }}
@@ -80,6 +91,17 @@ export default function CoreOrb({ state }: OrbProps) {
           <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: color }} />
           <span className="font-rajdhani text-[13px] tracking-widest" style={{ color }}>{state}</span>
         </div>
+        {showMTTR && (
+          <div className="mt-2 flex flex-col items-center">
+            <span className="text-[10px] text-text-off tracking-widest uppercase">MTTR</span>
+            <span
+              className="font-orbitron text-[18px] font-bold"
+              style={{ color, textShadow: `0 0 10px ${color}80` }}
+            >
+              {formatMTTR(mttr)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Ellipse base */}
