@@ -45,6 +45,10 @@ make up                  # start the full stack
 
 ---
 
+## Architecture
+
+![JARVIS Architecture](jarvis-architecture.jpeg)
+
 ## How the autonomous loop works
 
 ```
