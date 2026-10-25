@@ -1,15 +1,13 @@
 # JARVIS — Autonomous Cyber Defense Platform
 
 > **Workshop M2 2026 · PROJECT RESILIENCE-ALPHA**  
-> A payment platform that detects real attacks with machine learning, fixes itself without human intervention, and proves recovery with a live transaction — all visible on a sci-fi HUD in real time.
+> A payment platform that detects real attacks with machine learning, restores itself without human intervention, and confirms recovery with a live transaction, all shown on a HUD in real time.
 
 ---
 
 ## What it does
 
-A financial platform gets attacked. JARVIS notices before any human does, restores the service on its own, then runs a real payment to confirm everything works again. The whole loop — detection, decision, remediation, proof — runs in under 60 seconds with zero manual steps.
-
-This isn't a demo script. The attack comes from a separate machine, the ML model reads live Wazuh alerts, and the recovery agent is a standalone process that leaves a signed audit trail of every action it took.
+A financial platform gets attacked. JARVIS detects it before any human does, restores the service on its own, then runs a real payment to confirm everything works. The whole loop (detection, decision, remediation, proof) takes under 60 seconds. The attack comes from a separate machine, the ML model reads live Wazuh alerts, and the recovery agent is a standalone process with a signed audit trail of every action it took.
 
 ---
 
@@ -19,13 +17,13 @@ This isn't a demo script. The attack comes from a separate machine, the ML model
 
 ![JARVIS Command Center](jarvis-V2.png)
 
-The main HUD displays the system state in real time: the 3D wireframe orb turns red during an attack and shifts to green once recovery is confirmed. Every panel — agents, timeline, ML score, infra status — updates live via WebSocket.
+The main HUD displays system state in real time: the 3D wireframe orb turns red during an attack and green once recovery is confirmed. Every panel (agents, timeline, ML score, infra status) updates live via WebSocket.
 
 ### SOC Operations View
 
 ![JARVIS SOC Dashboard](Jarvis.png)
 
-The operator panel gives authenticated access to live service probes, Wazuh alert logs, the ML detector output, and the recovery audit journal. JARVIS never touches the remediation engine — it only reads and explains.
+The operator panel gives authenticated access to live service probes, Wazuh alert logs, the ML detector output, and the recovery audit journal. JARVIS has no write access to the remediation engine; it only reads and explains.
 
 ---
 
@@ -67,12 +65,12 @@ PC Attaquant ──► WAF (Nginx + ModSecurity)
         Frontend JARVIS ◄── Backend WebSocket
 ```
 
-**Four steps, no human in the loop:**
+The loop has four steps:
 
-1. **Detect** — The ML worker reads Wazuh alert windows every 5 seconds. When the anomaly score crosses the learned threshold and a service is actually down, it raises an `eligible_for_recovery` flag.
-2. **Decide** — The Windows recovery agent polls that flag. It checks the Docker container state before touching anything. Cooldown of 180 seconds between actions.
-3. **Remediate** — `docker start jarvis-auth-service`. Nothing else. The allowed container list is hardcoded to two names.
-4. **Verify** — A fresh user account is registered and a `€1.00` payment is processed through the WAF. HTTP 201 = recovered. The result lands in `recovery-audit.jsonl` and the dashboard.
+1. **Detect:** The ML worker reads Wazuh alert windows every 5 seconds. When the anomaly score crosses the learned threshold and a service is actually down, it raises an `eligible_for_recovery` flag.
+2. **Decide:** The Windows recovery agent polls that flag, checks the Docker container state before touching anything, and applies a 180-second cooldown between actions.
+3. **Remediate:** `docker start jarvis-auth-service`. The allowed container list is hardcoded to two names.
+4. **Verify:** A fresh user account is registered and a `€1.00` payment is processed through the WAF. HTTP 201 = recovered. The result lands in `recovery-audit.jsonl` and the dashboard.
 
 ---
 
@@ -142,7 +140,7 @@ The detector uses an **Isolation Forest** trained on 8-dimensional feature windo
 | `unique_ips` | Distinct source IPs in the window |
 | `service_down` | Number of services failing their `/health` probe |
 
-Training uses a simulated normal baseline until approved real samples are collected. The model ships ready — no pre-training step required.
+Training runs on a simulated normal baseline until approved real samples are collected. The model comes pre-trained; no training step is needed before the demo.
 
 ```bash
 # Force retrain on approved baseline
@@ -175,11 +173,11 @@ The agent writes every decision to `workshop/recovery-audit.jsonl`. The proof en
 
 ## Security constraints
 
-- Zero human intervention during the demo — no "repair" button anywhere
+- No human intervention during the demo; there is no "repair" button
 - LLM stays local: Ollama only, model ≤ 8B parameters
-- JARVIS is read-only — it has no write access to Docker, the DB, or the remediator
-- No secrets in the repo — everything goes through `.env` (gitignored) and Vault
-- The remediator never touches `/var/run/docker.sock` directly — it goes through `docker-socket-proxy`
+- JARVIS is read-only; it has no write access to Docker, the DB, or the remediator
+- No secrets in the repo; everything goes through `.env` (gitignored) and Vault
+- The remediator goes through `docker-socket-proxy` rather than touching `/var/run/docker.sock` directly
 - The recovery agent's container allowlist is hardcoded to two names: `jarvis-auth-service` and `jarvis-waf`
 
 ---
