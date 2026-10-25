@@ -1,67 +1,195 @@
-# JARVIS — Command Center
+# JARVIS — Autonomous Cyber Defense Platform
 
-> Workshop M2 2026 · PROJECT RESILIENCE-ALPHA  
-> A self-healing payment platform with ML anomaly detection, autonomous remediation, and a sci-fi HUD dashboard.
+> **Workshop M2 2026 · PROJECT RESILIENCE-ALPHA**  
+> A payment platform that detects real attacks with machine learning, fixes itself without human intervention, and proves recovery with a live transaction — all visible on a sci-fi HUD in real time.
 
-## Quick start (3 commands)
+---
+
+## What it does
+
+A financial platform gets attacked. JARVIS notices before any human does, restores the service on its own, then runs a real payment to confirm everything works again. The whole loop — detection, decision, remediation, proof — runs in under 60 seconds with zero manual steps.
+
+This isn't a demo script. The attack comes from a separate machine, the ML model reads live Wazuh alerts, and the recovery agent is a standalone process that leaves a signed audit trail of every action it took.
+
+---
+
+## Dashboard
+
+### Command Center (our interface)
+
+![JARVIS Command Center](jarvis-V2.png)
+
+The main HUD displays the system state in real time: the 3D wireframe orb turns red during an attack and shifts to green once recovery is confirmed. Every panel — agents, timeline, ML score, infra status — updates live via WebSocket.
+
+### SOC Operations View
+
+![JARVIS SOC Dashboard](Jarvis.png)
+
+The operator panel gives authenticated access to live service probes, Wazuh alert logs, the ML detector output, and the recovery audit journal. JARVIS never touches the remediation engine — it only reads and explains.
+
+---
+
+## Quick start
 
 ```bash
-cp .env.example .env          # fill in secrets
-make build                    # build all images
-make up                       # start the full stack
+cp .env.example .env     # fill in secrets
+make build               # build all Docker images
+make up                  # start the full stack
 ```
 
-Dashboard → http://localhost:5173  
-Grafana   → http://localhost:3001
+| URL | What's there |
+|---|---|
+| `http://localhost:5173` | JARVIS dashboard |
+| `http://localhost:3001` | Grafana (metrics + logs) |
+| `http://localhost:9090` | Prometheus |
 
-## Architecture
+---
+
+## How the autonomous loop works
 
 ```
-Attacker ──► WAF ──► Payment API + Auth + DB
-                          │ metrics + logs
-                     Prometheus / Loki
-                          │
-                    Detector ML (Isolation Forest)
-                          │ Redis Streams
-                    Remediator (auto playbooks)
-                          │
-                    Verifier (test transaction)
-                          │
-              Frontend JARVIS ◄── Backend WebSocket
+PC Attaquant ──► WAF (Nginx + ModSecurity)
+                     │
+              Payment API / Auth / DB
+                     │ logs + metrics
+              Wazuh SIEM + Prometheus + Loki
+                     │ jarvis:wazuh:recent (Redis)
+              Detector ML (Isolation Forest, 8 features)
+                     │ jarvis:events stream
+              Remediator (playbooks via docker-socket-proxy)
+                     │
+              Verifier (real test transaction)
+                     │
+        Frontend JARVIS ◄── Backend WebSocket
 ```
+
+**Four steps, no human in the loop:**
+
+1. **Detect** — The ML worker reads Wazuh alert windows every 5 seconds. When the anomaly score crosses the learned threshold and a service is actually down, it raises an `eligible_for_recovery` flag.
+2. **Decide** — The Windows recovery agent polls that flag. It checks the Docker container state before touching anything. Cooldown of 180 seconds between actions.
+3. **Remediate** — `docker start jarvis-auth-service`. Nothing else. The allowed container list is hardcoded to two names.
+4. **Verify** — A fresh user account is registered and a `€1.00` payment is processed through the WAF. HTTP 201 = recovered. The result lands in `recovery-audit.jsonl` and the dashboard.
+
+---
 
 ## Stack
 
-| Layer | Tech |
+| Layer | Technology |
 |---|---|
-| Frontend | React + Vite + TypeScript + Tailwind + Three.js |
+| Frontend | React 18 + Vite + TypeScript + Tailwind CSS + Three.js (orb) |
 | Backend | FastAPI + WebSocket + Redis Streams |
-| Payment | FastAPI + PostgreSQL |
-| ML | scikit-learn Isolation Forest |
-| LLM | Ollama (Llama 3.1 8B Q4) + LangChain RAG |
-| Infra | Docker Compose + Nginx WAF + Prometheus + Loki + Wazuh |
+| Payment system | FastAPI + PostgreSQL (our own, no Stripe) |
+| ML detection | scikit-learn Isolation Forest — 8 Wazuh-based features |
+| LLM / RAG | Ollama (qwen2.5:3b Q4) + LangChain + TF-IDF — fully local |
+| Observability | Prometheus + Loki + Promtail + Grafana |
+| Security | Nginx + ModSecurity CRS (WAF) + Wazuh SIEM + HashiCorp Vault |
+| Infra | Docker Compose + Ansible + docker-socket-proxy |
+
+---
+
+## Project structure
+
+```
+jarvis/
+├── frontend/          React HUD dashboard
+├── backend/           FastAPI — WebSocket relay, Wazuh API, RAG proxy
+├── sys-pai/           Payment API + Auth service + PostgreSQL (attack target)
+├── siem/              WAF config, Wazuh rules, Prometheus, Loki, Grafana
+├── ia-auto/
+│   ├── detector/      IsolationForest worker — reads Wazuh, writes ML score to Redis
+│   ├── remediator/    Playbook engine — consumes anomaly events, acts via socket proxy
+│   └── verifier/      Post-remediation transaction probe
+├── workshop/
+│   ├── ml/            Standalone ML worker + model (host-side)
+│   ├── rag/           Local RAG server (TF-IDF + Ollama, port 8120)
+│   └── recovery_agent.py   Windows recovery agent with audit trail
+├── infra/             Ansible playbooks + Vault policies
+├── attacks/           Red team scripts (flood, brute force, SQLi, chaos)
+└── docs/              PCA/PRA, EBIOS RM, runbooks (also used as RAG knowledge base)
+```
+
+---
 
 ## Make targets
 
-| Command | Description |
+| Command | What it does |
 |---|---|
-| `make up` | Start all services |
-| `make down` | Stop all services |
-| `make logs` | Stream all logs |
-| `make demo` | Run the automated demo scenario |
-| `make attack` | Launch flood attack (dev only) |
-| `make reset` | Wipe volumes and restart fresh |
+| `make up` | Start the full stack |
+| `make down` | Stop everything |
+| `make logs` | Stream all service logs |
+| `make demo` | Run the automated attack + recovery scenario |
+| `make attack` | Launch a flood from localhost (dev only) |
+| `make reset` | Wipe volumes and start fresh |
 
-## Train the ML model
+---
+
+## ML model
+
+The detector uses an **Isolation Forest** trained on 8-dimensional feature windows extracted from Wazuh alerts:
+
+| Feature | What it measures |
+|---|---|
+| `events` | Total alerts in the last 60 seconds |
+| `auth_failed` | Authentication failure rules (100210, 100211, 100223, 100224) |
+| `payments_declined` | Payment rejection rules (100220, 100225, 100226) |
+| `blocked` | HTTP 403/429 responses |
+| `probes` | Reconnaissance patterns (100212–100217, 31101) |
+| `critical` | Alerts at Wazuh level ≥ 12 |
+| `unique_ips` | Distinct source IPs in the window |
+| `service_down` | Number of services failing their `/health` probe |
+
+Training uses a simulated normal baseline until approved real samples are collected. The model ships ready — no pre-training step required.
 
 ```bash
+# Force retrain on approved baseline
 docker compose exec detector python train.py
 ```
 
-## Key constraints
+---
 
-- Zero human intervention during demo
-- Local LLM only (Ollama, ≤8B params)
-- Jarvis AI is read-only
-- No secrets in the repo (`.env` + Vault)
-- Remediator accesses Docker only via `docker-socket-proxy`
+## Recovery agent
+
+Run on the host before the demo (not inside any container):
+
+```bash
+# Dry run — logs what would happen, touches nothing
+python workshop/recovery_agent.py
+
+# Live — authorizes the allowlisted docker start
+python workshop/recovery_agent.py --execute
+```
+
+The agent writes every decision to `workshop/recovery-audit.jsonl`. The proof entry looks like this:
+
+```json
+{"event_time": "2026-10-22T18:40:22Z", "state": "considered", "service": "jarvis-auth-service", ...}
+{"event_time": "2026-10-22T18:40:22Z", "state": "restarted", "service": "jarvis-auth-service", ...}
+{"event_time": "2026-10-22T18:40:24Z", "state": "verified",  "service": "jarvis-auth-service", "payment_http": 201}
+```
+
+---
+
+## Security constraints
+
+- Zero human intervention during the demo — no "repair" button anywhere
+- LLM stays local: Ollama only, model ≤ 8B parameters
+- JARVIS is read-only — it has no write access to Docker, the DB, or the remediator
+- No secrets in the repo — everything goes through `.env` (gitignored) and Vault
+- The remediator never touches `/var/run/docker.sock` directly — it goes through `docker-socket-proxy`
+- The recovery agent's container allowlist is hardcoded to two names: `jarvis-auth-service` and `jarvis-waf`
+
+---
+
+## Operator access
+
+Set `JARVIS_OPERATOR_TOKEN` (≥ 8 chars) in `.env`. Optionally add `JARVIS_MFA_SECRET` (base32, ≥ 16 chars) to enable TOTP two-factor login via `POST /operator/session`.
+
+```bash
+JARVIS_OPERATOR_TOKEN=your-token-here
+JARVIS_MFA_SECRET=BASE32SECRETHERE   # optional, enables MFA
+JARVIS_RECOVERY_TOKEN=32-char-secret-for-recovery-agent
+```
+
+---
+
+*Workshop M2 2026 · PROJECT RESILIENCE-ALPHA*
