@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, LayoutGrid, Bell, Settings } from "lucide-react";
 import type { SystemState } from "../../types/events";
+import { useJarvis } from "../../jarvis/JarvisContext";
 
 interface HeaderProps {
   state: SystemState;
@@ -14,6 +15,7 @@ const STATE_COLORS: Record<SystemState, { dot: string; text: string; pill: strin
 };
 
 export default function Header({ state }: HeaderProps) {
+  const j = useJarvis();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -74,6 +76,9 @@ export default function Header({ state }: HeaderProps) {
         </div>
         {[LayoutGrid, Bell, Settings].map((Icon, i) => (
           <button
+            type="button"
+            aria-label={i === 2 ? "Paramètres opérateur" : i === 1 ? "Voir les alertes" : "Voir l'incident"}
+            onClick={() => j.open(i === 2 ? "connection" : "incident")}
             key={i}
             className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/5"
             style={{ border: "1px solid rgba(56,189,248,0.15)" }}
@@ -82,7 +87,11 @@ export default function Header({ state }: HeaderProps) {
           </button>
         ))}
         <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+          role="button" tabIndex={0}
+          aria-label="Connexion opérateur"
+          onClick={() => j.setDialog("connection")}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") j.setDialog("connection"); }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer"
           style={{ background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.3)" }}
         >
           <div className="w-6 h-6 rounded-full bg-cyan-DEFAULT/20 border border-cyan-DEFAULT/50 flex items-center justify-center">
@@ -90,7 +99,7 @@ export default function Header({ state }: HeaderProps) {
           </div>
           <div className="flex flex-col">
             <span className="text-[11px] font-semibold" style={{ color: "#22D3EE" }}>Operator</span>
-            <span className="text-[10px] text-text-off">Commander</span>
+            <span className="text-[10px] text-text-off">{j.connected ? "API connected" : "Connect session"}</span>
           </div>
         </div>
       </div>

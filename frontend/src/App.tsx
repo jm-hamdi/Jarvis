@@ -36,6 +36,7 @@ export default function App() {
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#030914", position: "relative" }}>
       {/* ── Fixed 1920×1080 canvas, scaled to fit any screen ── */}
       <div
+        data-testid="command-center"
         style={{
           width: W,
           height: H,

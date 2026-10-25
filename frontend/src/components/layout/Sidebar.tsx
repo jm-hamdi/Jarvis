@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import Logo from "./Logo";
 import VoiceStatus from "./VoiceStatus";
+import { useJarvis } from "../../jarvis/JarvisContext";
 
 const NAV = [
   { icon: LayoutDashboard, label: "Command Center", badge: null, active: true },
@@ -19,6 +20,7 @@ const NAV = [
 ];
 
 export default function Sidebar() {
+  const j = useJarvis();
   return (
     <div
       className="flex flex-col h-full"
@@ -33,6 +35,11 @@ export default function Sidebar() {
       <nav className="flex-1 py-3 overflow-y-auto">
         {NAV.map(({ icon: Icon, label, badge, active }) => (
           <button
+            type="button"
+            onClick={() => {
+              if (label === "Paramètres") j.setDialog("connection");
+              else if (label === "Incidents" || label === "Alertes SIEM" || label === "Logs") j.open("incident");
+            }}
             key={label}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all group"
             style={{
