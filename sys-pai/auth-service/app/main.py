@@ -1,12 +1,9 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from jose import jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-import os
-
 class Settings(BaseSettings):
     jwt_secret: str = "dev_secret"
     jwt_algorithm: str = "HS256"

@@ -4,7 +4,6 @@ Default mode DRY-RUN. --execute enables a strict, auditable allowlist of two ser
 """
 import argparse
 import json
-import os
 from pathlib import Path
 import secrets
 import subprocess
